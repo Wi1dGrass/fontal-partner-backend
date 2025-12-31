@@ -1,4 +1,4 @@
-package com.qimu.jujiao.service.impl;
+package com.qimu.jujiao.service;
 
 import com.google.gson.Gson;
 import com.qimu.jujiao.model.entity.Team;
