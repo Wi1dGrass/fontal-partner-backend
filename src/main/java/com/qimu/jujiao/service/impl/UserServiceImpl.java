@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.qimu.jujiao.common.ErrorCode;
 import com.qimu.jujiao.exception.BusinessException;
 import com.qimu.jujiao.mapper.UserMapper;
@@ -12,12 +14,16 @@ import com.qimu.jujiao.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.stream.Collectors;
 
+import static com.qimu.jujiao.contant.UserConstant.ADMIN_ROLE;
 import static com.qimu.jujiao.contant.UserConstant.LOGIN_USER_STATUS;
 
 @Slf4j
@@ -130,13 +136,29 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return user.getId();
     }
 
+    @Override
+    public User getLoginUser(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        //获取当前登入用户
+        Object objUser = request.getSession().getAttribute(LOGIN_USER_STATUS);
+        User currentUser = (User) objUser;
+        if (currentUser == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"请先登入");
+        }
+        return currentUser;
+    }
+
+
+
     /**
      * 用户脱敏
      *
      * @param originUser 用户信息
      * @return 脱敏后的用户信息
      */
-
+    @Override
     public User getSafetyUser(User originUser) {
         if (originUser == null) {
             return null;
@@ -158,4 +180,126 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         safeUser.setCreateTime(originUser.getCreateTime());
         return safeUser;
     }
+
+    @Override
+    public Integer loginOut(HttpServletRequest request) {
+        request.getSession().removeAttribute(LOGIN_USER_STATUS);
+        return 1;
+    }
+
+    @Override
+    public int updateUser(User user, User currentUser) {
+        long userId = user.getId();
+        if (userId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        if (!StringUtils.isAnyBlank(user.getUserDesc()) && user.getUserDesc().length() > 30) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "简介不能超过30个字符");
+        }
+        if (!StringUtils.isAnyBlank(user.getUsername()) && user.getUsername().length() > 20) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "昵称不能超过20个字符");
+        }
+        if (!StringUtils.isAnyBlank(user.getContactInfo()) && user.getContactInfo().length() > 18) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "联系方式不能超过18个字符");
+        }
+        //不能更新账号
+        if(user.getUserAccount() != null && user.getUserAccount().equals(currentUser.getUserAccount())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户账号无法修改");
+        }
+        //如果修改密码，密码不为空
+        if (user.getUserPassword() != null && user.getUserPassword().length() >10){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 如果是管理员，允许更新任意用户
+        // 如果不是管理员，只允许更新当前（自己的）信息
+        if (!isAdmin(currentUser) && userId != currentUser.getId()) {
+            throw new BusinessException(ErrorCode.NO_AUTH, "无权限");
+        }
+        // 用户必须不为空
+        User oldUser = userMapper.selectById(userId);
+        if (oldUser == null) {
+            throw new BusinessException(ErrorCode.NULL_ERROR);
+        }
+        return userMapper.updateById(user);
+    }
+
+    @Override
+    public boolean isAdmin(User currentUser) {
+        return currentUser != null && currentUser.getUserRole() == ADMIN_ROLE;
+    }
+
+//    @Override
+//    public List<User> searchBySQL(List<String> tagNameList) {
+//        if (CollectionUtils.isEmpty(tagNameList)) {
+//            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+//        }
+//        long starTime = System.currentTimeMillis();
+//        //直接更具sql查找
+//        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+//        //拼接tag
+//        for (String tags : tagNameList) {
+//            queryWrapper = queryWrapper.like("tags",tags);
+//        }
+//        List<User> userList = userMapper.selectList(queryWrapper);
+//        log.info("sql query time = " + (System.currentTimeMillis() - starTime));
+//        return userList.stream().map(this::getSafetyUser).collect(Collectors.toList());
+//    }
+//
+//    @Override
+//    public List<User> searchCache(List<String> tagNameList) {
+//        if (CollectionUtils.isEmpty(tagNameList)) {
+//            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+//        }
+//        //先查找所有用户
+//        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+//        long starTime = System.currentTimeMillis();
+//        List<User> userList = userMapper.selectList(queryWrapper);
+//        Gson gson = new Gson();
+//        //判断内存是否包含要求的标签
+//        userList.stream().filter(user -> {
+//            String tagstr = user.getTags();
+//            if (StringUtils.isBlank(tagstr)){
+//                return false;
+//            }
+//            Set<String> tempTagNameSet =  gson.fromJson(tagstr,new TypeToken<Set<String>>(){}.getType());
+//            for (String tagName : tagNameList){
+//                if (!tempTagNameSet.contains(tagName)){
+//                    return false;
+//                }
+//            }
+//            return true;
+//        }).map(this::getSafetyUser).collect(Collectors.toList());
+//        log.info("memory query time = " + (System.currentTimeMillis() - starTime));
+//        return  userList;
+//    }
+
+    @Override
+    public List<User> searchUserByTags(Set<String> tagNameList) {
+        if (CollectionUtils.isEmpty(tagNameList)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 查询出所有的用户
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        List<User> userList = userMapper.selectList(queryWrapper);
+        Gson gson = new Gson();
+        // 在内存中查询符合要求的标签
+        return userList.stream().filter(user -> {
+            String tagsStr = user.getTags();
+            Set<String> tempTagNameStr = gson.fromJson(tagsStr, new TypeToken<Set<String>>() {
+            }.getType());
+            // 是否为空，为空返回HashSet的默认值，否则返回数值
+            tempTagNameStr = Optional.ofNullable(tempTagNameStr).orElse(new HashSet<>());
+            // tempTagNameStr集合中每一个元素首字母转换为大写
+            tempTagNameStr = tempTagNameStr.stream().map(StringUtils::capitalize).collect(Collectors.toSet());
+            // 返回false会过滤掉
+            for (String tagName : tagNameList) {
+                tagName = StringUtils.capitalize(tagName);
+                if (!tempTagNameStr.contains(tagName)) {
+                    return false;
+                }
+            }
+            return true;
+        }).map(this::getSafetyUser).collect(Collectors.toList());
+    }
+
 }

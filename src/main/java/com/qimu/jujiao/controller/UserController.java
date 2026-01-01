@@ -11,13 +11,13 @@ import com.qimu.jujiao.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.util.CollectionUtils;
+import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
+import java.util.Set;
 
 /**
  * @Author fontal
@@ -32,13 +32,6 @@ public class UserController {
     @Resource
     private RedisTemplate<String,Object> redisTemplate;
 
-    /**
-     * 用户登录
-     *
-     * @param loginRequest
-     * @param request
-     * @return
-     */
     @PostMapping("/login")
     public BaseResponse<User> login(@RequestBody UserLoginRequest loginRequest, HttpServletRequest request) {
         //进行参数校验
@@ -67,4 +60,45 @@ public class UserController {
         return ResultUtil.success(result,"注册成功");
     }
 
+    @GetMapping("/current")
+    public BaseResponse<User> getCurrentUser(HttpServletRequest request) {
+        User currentUser = userService.getLoginUser(request);
+        Long userId = currentUser.getId();
+        User user = userService.getById(userId);
+        return  ResultUtil.success(userService.getSafetyUser(user));
+    }
+
+    @PostMapping("/loginOut")
+    public BaseResponse<Integer> loginOut(HttpServletRequest request) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        return ResultUtil.success(userService.loginOut(request));
+    }
+
+    @PostMapping("/update")
+    public BaseResponse<Integer> getUpdateUserById(@RequestBody User user, HttpServletRequest request) {
+        // 参数校验
+        if (user == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 登录校验
+        User currentUser = userService.getLoginUser(request);
+        // 权限校验
+        int updateId = userService.updateUser(user, currentUser);
+        //TODO 用户信息更新 删除缓存
+
+        // 返回结果
+        return ResultUtil.success(updateId);
+    }
+
+
+    @GetMapping("/search/tags")
+    public BaseResponse<List<User>> searchUsersByTags(@RequestParam(required = false) Set<String> tagNameList) {
+        if (CollectionUtils.isEmpty(tagNameList)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "标签参数错误");
+        }
+        List<User> userList = userService.searchUserByTags(tagNameList);
+        return ResultUtil.success(userList);
+    }
 }
