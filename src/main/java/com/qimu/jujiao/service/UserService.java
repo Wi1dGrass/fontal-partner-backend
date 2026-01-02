@@ -3,6 +3,7 @@ package com.qimu.jujiao.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.qimu.jujiao.common.ErrorCode;
 import com.qimu.jujiao.model.entity.User;
+import com.qimu.jujiao.model.request.UpdateTagRequest;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -28,9 +29,11 @@ public interface UserService extends IService<User> {
     boolean isAdmin(User currentUser);
 
 
-//    List<User> searchBySQL(List<String> tagNameList);
-//
-//    List<User> searchCache(List<String> tagNameList);
-
     List<User> searchUserByTags(Set<String> tagNameList);
+
+    boolean isAdmin(HttpServletRequest request);
+
+    String redisFormat(Long id);
+
+    int updateTageById(UpdateTagRequest tagRequest, User currentUser);
 }

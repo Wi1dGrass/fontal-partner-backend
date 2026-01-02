@@ -10,6 +10,7 @@ import com.qimu.jujiao.common.ErrorCode;
 import com.qimu.jujiao.exception.BusinessException;
 import com.qimu.jujiao.mapper.UserMapper;
 import com.qimu.jujiao.model.entity.User;
+import com.qimu.jujiao.model.request.UpdateTagRequest;
 import com.qimu.jujiao.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -300,6 +301,49 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             }
             return true;
         }).map(this::getSafetyUser).collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean isAdmin(HttpServletRequest request) {
+        Object objUser = request.getSession().getAttribute(LOGIN_USER_STATUS);
+        User user = (User) objUser;
+        return user != null && user.getUserRole() == ADMIN_ROLE;
+    }
+
+    @Override
+    public String redisFormat(Long id) {
+        return String.format("fontal:user:search:%s",id);
+    }
+
+    private Set<String> toCapitalize(Set<String> oldSet) {
+        return oldSet.stream().map(StringUtils::capitalize).collect(Collectors.toSet());
+    }
+
+    @Override
+    public int updateTageById(UpdateTagRequest tagRequest, User currentUser) {
+        long id = tagRequest.getId();
+        if (id <= 0){
+            throw  new BusinessException(ErrorCode.PARAMS_ERROR,"该用户不存在");
+        }
+        Set<String> newTags = tagRequest.getTagList();
+        if(newTags.size() > 12) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"最多设置12个标签");
+        }
+        if (!isAdmin(currentUser) && id != currentUser.getId()) {
+            throw new BusinessException(ErrorCode.NO_AUTH,"无权限");
+        }
+        User user = userMapper.selectById(id);
+        Gson gson = new  Gson();
+        Set<String> oldTags = gson.fromJson(user.getTags(), new TypeToken<Set<String>>(){}.getType());
+        Set<String> oldTagsCapitalize = toCapitalize(oldTags);
+        Set<String> newTagsCapitalize = toCapitalize(newTags);
+        // 添加 newTagsCapitalize 中 oldTagsCapitalize 中不存在的元素
+        oldTagsCapitalize.addAll(newTagsCapitalize.stream().filter(tag->!oldTagsCapitalize.contains(tag)).collect(Collectors.toList()));
+        // 移除 oldTagsCapitalize 中 newTagsCapitalize 中不存在的元素
+        oldTagsCapitalize.removeAll(oldTagsCapitalize.stream().filter(tag -> !newTagsCapitalize.contains(tag)).collect(Collectors.toSet()));
+        String tagsJson = gson.toJson(oldTagsCapitalize);
+        user.setTags(tagsJson);
+        return userMapper.updateById(user);
     }
 
 }
