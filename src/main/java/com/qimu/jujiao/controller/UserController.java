@@ -39,10 +39,6 @@ public class UserController {
     @Resource
     private RedisTemplate<String, Object> redisTemplate;
 
-    private static final Gson GSON = new Gson();
-    private static final Type TAG_SET_TYPE = new TypeToken<Set<String>>() {
-    }.getType();
-
     /**
      * 智能搜索/推荐用户列表
      */
@@ -72,7 +68,7 @@ public class UserController {
             finalUserList = userService.list(new QueryWrapper<User>().last("ORDER BY RAND() LIMIT 10"));
         } else {
             // 登录模式：核心算法匹配
-            finalUserList = computeMatchUsers(loginUser);
+            finalUserList = userService.computeMatchUsers(loginUser);
         }
 
         // 5. 最终兜底：如果没算出来，随机给 10 个
@@ -91,59 +87,6 @@ public class UserController {
 
         // 8. 返回打乱后的结果
         return ResultUtil.success(doShuffle(safetyUserList));
-    }
-
-    /**
-     * 核心算法：基于标签交集的并行匹配
-     */
-    private List<User> computeMatchUsers(User loginUser) {
-        String loginUserTags = loginUser.getTags();
-        if (StringUtils.isBlank(loginUserTags)) {
-            return new ArrayList<>();
-        }
-
-        // 【优化】预解析并标准化登录用户标签，避免在循环中重复执行
-        Set<String> loginTagSet = toCapitalize(GSON.fromJson(loginUserTags, TAG_SET_TYPE));
-
-        // 【优化】SQL 粗筛：只查 ID 和 Tags，且根据标签关键词筛选，减少 90% 数据量
-        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-        queryWrapper.select("id", "tags"); // 极简字段查询
-        queryWrapper.ne("id", loginUser.getId());
-        queryWrapper.eq("userStatus", 0);
-        queryWrapper.and(qw -> {
-            for (String tag : loginTagSet) {
-                qw.or().like("tags", tag);
-            }
-        });
-
-        List<User> allCandidates = userService.list(queryWrapper);
-        if (CollectionUtils.isEmpty(allCandidates)) {
-            return new ArrayList<>();
-        }
-
-        // 【优化】使用并行流处理 CPU 密集型计算（JSON 解析 & 交集计算）
-        List<Long> topIds = allCandidates.parallelStream()
-                .map(targetUser -> {
-                    String tags = targetUser.getTags();
-                    if (StringUtils.isBlank(tags)) {
-                        return new AbstractMap.SimpleEntry<>(targetUser.getId(), 0L);
-                    }
-                    Set<String> targetTagSet = toCapitalize(GSON.fromJson(tags, TAG_SET_TYPE));
-                    // 计算交集分数
-                    long score = loginTagSet.stream().filter(targetTagSet::contains).count();
-                    return new AbstractMap.SimpleEntry<>(targetUser.getId(), score);
-                })
-                .filter(entry -> entry.getValue() > 0)
-                .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue())) // 分数降序
-                .limit(20)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
-        // 【优化】批量回表补全完整用户信息，避免在脱敏循环中多次查询数据库
-        if (CollectionUtils.isEmpty(topIds)) {
-            return new ArrayList<>();
-        }
-        return userService.listByIds(topIds);
     }
 
     /**

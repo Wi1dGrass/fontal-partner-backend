@@ -36,4 +36,6 @@ public interface UserService extends IService<User> {
     String redisFormat(Long id);
 
     int updateTageById(UpdateTagRequest tagRequest, User currentUser);
+
+    List<User> computeMatchUsers(User loginUser);
 }
