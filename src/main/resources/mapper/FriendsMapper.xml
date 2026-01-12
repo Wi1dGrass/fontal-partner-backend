@@ -4,7 +4,7 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.qimu.jujiao.mapper.FriendsMapper">
 
-    <resultMap id="BaseResultMap" type="com.qimu.jujiao.model.entity.Friends">
+    <resultMap id="BaseResultMap" type="com.huixing.fontal.model.entity.Friends">
         <id property="id" column="id" jdbcType="BIGINT"/>
         <result property="fromId" column="fromId" jdbcType="BIGINT"/>
         <result property="receiveId" column="receiveId" jdbcType="BIGINT"/>
