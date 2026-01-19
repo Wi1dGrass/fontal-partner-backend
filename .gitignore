@@ -1,0 +1,130 @@
+# ====================
+# 操作系统
+# ====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ====================
+# IDE / 编辑器
+# ====================
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.code-workspace
+.eclipse/
+*.sublime-project
+*.sublime-workspace
+
+# ====================
+# 前端 (Vue 3 + Vite)
+# ====================
+
+# 依赖
+node_modules/
+jspm_packages/
+
+# 构建输出
+dist/
+dist-ssr/
+build/
+
+# 缓存
+.vite/
+.cache/
+.parcel-cache/
+
+# 自动生成文件
+auto-imports.d.ts
+components.d.ts
+*.d.ts.map
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# 日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 测试
+coverage/
+.nyc_output/
+
+# AI 辅助工具和文档
+.claude/
+ai-docs/
+待做任务.md
+需求-图片/
+
+# ====================
+# 后端 (Spring Boot)
+# ====================
+
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+.gradletasknamecache
+
+# 日志
+*.log
+logs/
+log/
+
+# Spring Boot
+spring-boot-*.log
+
+# 临时文件
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# AI 文档和内部资料
+ai-do/
+api-docs/
+db/
+doc/
+
+# ====================
+# 其他
+# ====================
+
+# 压缩文件
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# 证书和密钥
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+*.keystore
+
+# 敏感配置
+application-local.yml
+application-local.properties
+secret.config
